@@ -28,7 +28,7 @@ The structural chunker splits documents by markdown headings. When a document ha
 
 
 
-\*\*Cohort ledger:\*\* \[ ] Issue added to cohort ledger
+**Cohort ledger:** [ ] Issue added to cohort ledger
 
 
 
