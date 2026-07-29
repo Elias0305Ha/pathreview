@@ -106,10 +106,16 @@ which is what makes the data loss silent.
 **Walkthrough video (recommended):** _(not recorded)_
 
 **Blockers or open questions:**
-Going into Week 9 my main open question is scope. The issue as filed is about
+The main decision I had to make this week was scope. The issue as filed is about
 heading-less documents, and the failing test only covers that case. But the same two
 guards also drop the preamble before a document's first heading, which is real data loss
-from the same root cause. My current plan fixes both, since fixing only the reported case
-would leave the identical bug in place one line away — but I want to confirm with a
-maintainer on the PR that the broader fix is welcome rather than scope creep. Setext
+from the same root cause — I confirmed it while reproducing. I decided to fix both, because
+fixing only the reported case would leave the identical bug live four lines away, which is
+harder to defend in review than a slightly larger PR. I will flag the wider scope at the
+top of the PR description and keep the two changes in separate commits so a maintainer can
+ask me to split them cheaply.
+
+Still open going into Week 9: what a chunk with no heading should carry in its metadata.
+`heading_path` is currently always a non-empty string, so I need to grep its consumers in
+`rag/` and `api/` before deciding between an empty string and omitting the key. Setext
 headings I am deliberately leaving out of scope; that is a separate feature, not this bug.

@@ -99,10 +99,13 @@ Every chunk keeps the caller's original metadata keys, matching the existing
 
 ## Risks & unknowns
 
-- **Scope.** The issue is titled around heading-less documents, but the preamble bug is
-  the same two guards. Fixing only the reported case leaves the identical defect one line
-  away. I plan to fix both and say so explicitly in the PR description, so a maintainer can
-  ask me to narrow it. This is my main open question going into Week 9.
+- **Scope — decided: fix both.** The issue is titled around heading-less documents, but
+  the preamble bug comes from the same two guards. I considered fixing only the reported
+  case, and rejected it: a reviewer reading the diff would see line 115 changed and line
+  111 left alone, four lines apart, with the identical defect still live. That is a worse
+  outcome than a slightly larger PR. I will call the wider scope out explicitly at the top
+  of the PR description so a maintainer can ask me to narrow it, and I will keep the two
+  changes in separate commits so splitting them is cheap if they do.
 
 - **`heading_path` contract.** `heading_path` is currently always a non-empty string.
   Downstream consumers may format or filter on it, and an empty string could surface in a
