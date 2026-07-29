@@ -34,7 +34,7 @@ to take on higher-tier issues with more complex changes.
 
 ## Week 8 — Reproduction & solution planning
 
-**Reproduction commit link:** _(added in the following commit)_
+**Reproduction commit link:** https://github.com/Elias0305Ha/pathreview/commit/fb7fd060db79c6686936df750e992d0407edcd40
 
 **Reproduction summary:**
 I set up the local environment and ran the existing unit test suite for the structural
@@ -101,7 +101,7 @@ With no headings anywhere, both guards fail, `_extract_sections` returns `[]`, t
 `chunk()` never executes, and `chunk()` returns `[]`. Nothing raises and nothing is logged,
 which is what makes the data loss silent.
 
-**PLAN.md link:** _(added in the following commit)_
+**PLAN.md link:** https://github.com/Elias0305Ha/pathreview/blob/fix/149-structural-chunker-no-headings/PLAN.md
 
 **Walkthrough video (recommended):** _(not recorded)_
 
