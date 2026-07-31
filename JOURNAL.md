@@ -119,3 +119,83 @@ Still open going into Week 9: what a chunk with no heading should carry in its m
 `heading_path` is currently always a non-empty string, so I need to grep its consumers in
 `rag/` and `api/` before deciding between an empty string and omitting the key. Setext
 headings I am deliberately leaving out of scope; that is a separate feature, not this bug.
+
+## Week 9 — Solution building & PR submission
+
+### Check-in 1 (mid-week)
+
+_Written Thursday rather than Wednesday — I was a day late starting the build._
+
+**Current progress:**
+
+All five implementation sub-tasks from `PLAN.md` are done, in three commits.
+
+First I settled the open question I carried out of Week 8. I grepped `heading_path` across
+the repo: outside `structural_chunker.py` and its own test file, **nothing reads it** — not
+`rag/`, not `api/`, not `agent/`. So the "stray ` > ` in a citation breadcrumb" risk I was
+worried about does not exist, and I can write `heading_path: ""` with `heading_level: 0`
+and keep the metadata shape uniform across every chunk. I also checked
+`test_chunk_metadata_includes_heading_level`, which asserts `heading_level in [1, 2, 3]`:
+its fixture document opens with `# Level 1` and has no preamble, so it never sees a level-0
+chunk. That means I did not have to touch an existing assertion, which was the outcome I
+wanted — quietly editing someone else's test to make my change pass is exactly what a
+reviewer should catch.
+
+Steps 1–4 (the fix) landed as two commits, split so the second is droppable. Tracing the
+code before writing anything corrected an assumption in my plan: I had thought line 111 was
+the preamble bug and line 115 the heading-less bug, one each. It is not that clean. For a
+document with no headings, `heading_stack` and `current_section_lines` are *both* empty on
+every line, so the line-111 guard drops the content before line 115 is ever reached — the
+reported bug needs both guards relaxed. So the split is by symptom, not by line:
+
+- `fix(ingestion): emit a chunk for documents with no headings` — relaxes both guards and
+  moves section building into a new `_append_section` helper that skips whitespace-only
+  content. This alone closes #149.
+- `fix(ingestion): keep content that precedes the first heading` — routes the
+  heading-boundary save through the same helper without the `heading_stack` gate, so a
+  preamble becomes its own section.
+
+I verified the second commit is genuinely separable: with only the first applied, preamble
+lines are collected but still discarded at the heading boundary, so #149 stays fixed and
+the preamble behaviour is unchanged. If a maintainer calls the wider scope creep, dropping
+that commit costs nothing.
+
+Fixing the empty-content case turned up a bug I had listed as an edge case but had not
+realised was already live: a document of bare headings (`# A` / `## B` / `## C`) emits
+chunks with **empty text** on `main` today, because the old inline save path appended
+`"".strip()` without checking. `_append_section` guards it, so that is fixed as a side
+effect of the refactor rather than as a separate change.
+
+Step 5 (tests) is a third commit adding nine tests to `tests/unit/test_structural_chunker.py`,
+matching the existing fixture and assertion style. I checked they are real regression tests
+by restoring the pre-fix chunker and running them against it: eight of the nine fail. The
+ninth, `test_content_after_last_heading_is_kept`, passes both before and after — it guards
+existing behaviour rather than proving the fix, and I kept it for that reason.
+
+**Pre-existing failures.** I recorded a baseline before changing anything, which turned out
+to matter: `make test-unit` fails **53 tests across 16 files** on a clean checkout. Exactly
+one of those, `test_document_with_no_headings`, is mine. `make check` is worse — ruff
+reports 182 errors, black would reformat 52 files, and mypy stops early on missing stubs
+for `jose`, `passlib` and `rank_bm25`. After my changes: 52 failures, 385 passing, up from
+375. The only difference from baseline is my test flipping to pass. No new failures.
+
+I deliberately did **not** run `make check`, because it invokes `black .`, which rewrites
+all 52 files repo-wide. Burying a three-file fix in a repo-wide reformat is a good way to
+get a PR ignored. I ran `black --check` on my two files instead, and formatted only the
+code I added — the pre-existing `section_metadata.update({...})` blocks in the same file
+are still non-compliant and I left them alone. Ruff on my two files reports the same 4
+pre-existing errors as baseline (unused variables in tests I did not write); my additions
+add none. I will document all of this in the PR description.
+
+**Next steps:**
+Open the draft PR, ask for peer review in Slack, and act on anything that comes back. Then
+fill in Check-in 2 with the PR link, mark it ready for review, and submit the branch URL.
+
+**Blockers:**
+None on the code. The real risk is the peer review — it is the one item that depends on
+someone else's schedule, and I am asking late in the week, so I am opening the PR before
+polishing anything further rather than the other way round.
+
+`make` is not installed in my Git Bash environment, so I ran the underlying commands from
+`.venv/Scripts/` directly (`pytest tests/unit -m unit`, `ruff check`, `black --check`,
+`mypy`) — same commands the Makefile targets wrap.
