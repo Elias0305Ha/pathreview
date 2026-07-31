@@ -87,15 +87,11 @@ class StructuralChunker(BaseChunker):
             heading_match = re.match(r"^(#{1,6})\s+(.+)$", line)
 
             if heading_match:
-                # Save previous section if exists
-                if current_section_lines:
-                    if heading_stack:
-                        sections.append({
-                            "content": "\n".join(current_section_lines).strip(),
-                            "path": [h[1] for h in heading_stack],
-                            "level": heading_stack[-1][0] if heading_stack else 0,
-                        })
-                    current_section_lines = []
+                # Save the previous section. Not gated on heading_stack, so a
+                # preamble before the first heading becomes its own section
+                # rather than being dropped or merged into the heading below it.
+                self._append_section(sections, current_section_lines, heading_stack)
+                current_section_lines = []
 
                 # Process new heading
                 heading_level = len(heading_match.group(1))
@@ -119,9 +115,7 @@ class StructuralChunker(BaseChunker):
 
         return sections
 
-    def _append_section(
-        self, sections: list[dict], lines: list[str], heading_stack: list
-    ) -> None:
+    def _append_section(self, sections: list[dict], lines: list[str], heading_stack: list) -> None:
         """
         Append a section to sections if it holds non-whitespace content.
 
@@ -136,8 +130,10 @@ class StructuralChunker(BaseChunker):
         if not content:
             return
 
-        sections.append({
-            "content": content,
-            "path": [h[1] for h in heading_stack],
-            "level": heading_stack[-1][0] if heading_stack else 0,
-        })
+        sections.append(
+            {
+                "content": content,
+                "path": [h[1] for h in heading_stack],
+                "level": heading_stack[-1][0] if heading_stack else 0,
+            }
+        )
