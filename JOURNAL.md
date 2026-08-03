@@ -268,14 +268,16 @@ PR much harder to review and much easier to ignore. I ran `black --check` on my 
 and formatted only the code I added; the pre-existing non-compliant blocks in the same file
 are untouched. I said so in the PR and offered to reformat if the maintainer prefers it.
 
-**Draft PR feedback received from:** none
+**Draft PR feedback received from:** none — requested in `#ai201-community-su26`, no
+response before submission.
 
 This is the part of the week I handled worst, and I would rather record that accurately than
 dress it up. I started building on Thursday instead of Monday, which left no real window for
 someone to read the PR before the deadline. Posting it in Slack on the last day and waiting
 would have meant missing the submission, so I opened it as a ready PR rather than a draft
-and shared the link anyway. Review can still arrive on an open PR and I will respond to
-anything that comes back within the 48 hours `CONTRIBUTING.md` asks for.
+and shared the link in `#ai201-community-su26` anyway. Review can still arrive on an open PR
+and I will respond to anything that comes back within the 48 hours `CONTRIBUTING.md` asks
+for.
 
 The lesson is specific rather than general: of everything due this week, peer review was the
 only item that depended on another person's schedule, and it was therefore the only one I
