@@ -199,3 +199,95 @@ polishing anything further rather than the other way round.
 `make` is not installed in my Git Bash environment, so I ran the underlying commands from
 `.venv/Scripts/` directly (`pytest tests/unit -m unit`, `ruff check`, `black --check`,
 `mypy`) — same commands the Makefile targets wrap.
+
+---
+
+### Check-in 2 (end of week)
+
+**PR link:** https://github.com/ascherj/pathreview/pull/684
+
+**Branch:** `fix/149-structural-chunker-no-headings`
+
+**What you built:**
+`StructuralChunker` dropped every document that contained no ATX headings, returning zero
+chunks so the document was embedded as nothing and never reached the RAG index — silently,
+with no exception and no log line. I relaxed the two guards in `_extract_sections` that
+assumed a heading had always been seen, so content lines are collected unconditionally and
+the trailing section is flushed regardless of whether `heading_stack` is empty. Section
+building moved into a new `_append_section` helper that skips whitespace-only content,
+which keeps empty and whitespace-only input returning `[]` and also stops a document of
+bare headings from emitting chunks with empty text — a bug that was already live on `main`.
+
+**Tests added or updated:**
+`tests/unit/test_structural_chunker.py` — nine new tests, no existing test modified.
+
+Heading-less documents: `test_headingless_document_preserves_full_text`,
+`test_headingless_document_metadata` (asserts `heading_path == ""` and `heading_level == 0`),
+`test_headingless_document_preserves_source_metadata`, and
+`test_large_headingless_document_is_sub_chunked`, which asserts the document really does
+exceed `SECTION_TOKEN_LIMIT` before checking it splits into multiple non-empty chunks.
+
+Preamble: `test_preamble_before_first_heading_is_kept` and `test_preamble_is_its_own_chunk`,
+the latter checking the preamble is not silently merged into the first heading's section.
+
+Edge cases from `PLAN.md`: `test_headings_only_document_emits_no_empty_chunks`,
+`test_content_after_last_heading_is_kept`, and
+`test_hash_without_space_is_treated_as_content` for `#NotAHeading`, which CommonMark does
+not treat as a heading.
+
+I checked these are genuine regression tests rather than tests that merely describe the new
+code: I restored the pre-fix `_extract_sections` and ran them against it, and eight of the
+nine fail. The ninth, `test_content_after_last_heading_is_kept`, passes both before and
+after — it guards existing behaviour against regression, and I kept it knowingly.
+
+**Self-review confirmation:** [x] make check passes  [x] make test-unit passes
+
+Both boxes are checked in the sense the assignment defines for a codebase with documented
+pre-existing failures: **my changes introduce no new failures.** Neither command passes
+outright on this repository, and did not before I touched it. Measured against a baseline I
+recorded on a clean checkout before making any changes:
+
+| Check | Baseline | After this PR |
+| --- | --- | --- |
+| `pytest tests/unit -m unit` | 53 failed, 375 passed | 52 failed, 385 passed |
+| `ruff check .` | 182 errors | 182 errors |
+| `black --check .` | 52 files would reformat | 52 files would reformat |
+| `mypy` (6 packages) | 5 errors, checking halted | 5 errors, checking halted |
+
+Diffing the sorted failure lists from before and after gives exactly one line of
+difference: `test_document_with_no_headings` flipping from fail to pass. The 52 remaining
+failures are spread across sixteen files — `test_review_service.py` (13),
+`test_bias_detector.py` (9), `test_pii_scrubber.py` (5) and others — none of them related
+to chunking. The mypy errors are missing library stubs for `jose`, `passlib` and
+`rank_bm25`, plus a numpy stub requiring Python 3.12. All of this is documented in the PR
+description so a reviewer does not have to take my word for it.
+
+I deliberately did not run `make check` itself, because it invokes `black .`, which rewrites
+52 files repo-wide. Burying a three-file bugfix inside a repo-wide reformat would make the
+PR much harder to review and much easier to ignore. I ran `black --check` on my two files
+and formatted only the code I added; the pre-existing non-compliant blocks in the same file
+are untouched. I said so in the PR and offered to reformat if the maintainer prefers it.
+
+**Draft PR feedback received from:** none
+
+This is the part of the week I handled worst, and I would rather record that accurately than
+dress it up. I started building on Thursday instead of Monday, which left no real window for
+someone to read the PR before the deadline. Posting it in Slack on the last day and waiting
+would have meant missing the submission, so I opened it as a ready PR rather than a draft
+and shared the link anyway. Review can still arrive on an open PR and I will respond to
+anything that comes back within the 48 hours `CONTRIBUTING.md` asks for.
+
+The lesson is specific rather than general: of everything due this week, peer review was the
+only item that depended on another person's schedule, and it was therefore the only one I
+could not compress by working harder on the last day. That is the item that should have gone
+first. The code took a few hours; the review window needed days, and I spent them on
+planning I had largely finished in Week 8.
+
+**What I would still change.** Three things I chose not to do, recorded so they are
+decisions rather than omissions. `chunk_index` is already wrong — it is set to `len(chunks)`
+only on the non-sub-chunked branch, so indices collide once `SemanticChunker` contributes
+chunks. My fix produces more chunks and makes it more visible, but it is a separate bug and
+I offered to file it rather than quietly widening the PR. Setext headings are still
+unsupported; after this fix those documents at least stop vanishing. And `# Just A Heading`
+with no body still yields no chunk, which is arguably wrong but is a behaviour decision I
+did not think was mine to make unilaterally.
