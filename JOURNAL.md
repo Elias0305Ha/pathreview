@@ -293,3 +293,170 @@ I offered to file it rather than quietly widening the PR. Setext headings are st
 unsupported; after this fix those documents at least stop vanishing. And `# Just A Heading`
 with no body still yields no chunk, which is arguably wrong but is a behaviour decision I
 did not think was mine to make unilaterally.
+
+## Week 10 — Iteration & reflection
+
+### Reviewer feedback
+
+**Feedback received:** [ ] Yes  [x] No — still awaiting review
+
+**Summary of feedback:**
+No review came in. I posted the PR link in `#ai201-community-su26` at the end of Week 9
+asking for a peer read, and nothing came back before the Week 10 deadline. PR #684 on
+`ascherj/pathreview` is still open with no comments from maintainers or classmates.
+
+Two separate things are worth keeping distinct here, because only one of them is on me.
+Maintainer review is not part of the Summer 2026 cohort, so its absence is expected and not
+something I could have changed. **Peer** review was available, and I did not get it because
+I asked on the last day. That one is mine, and I recorded it as such in Check-in 2 rather
+than letting it blur into the first.
+
+**How you responded:**
+No changes to make. The branch stands as submitted in Week 9. If a comment arrives on the
+open PR after this deadline I will still answer it inside the 48 hours `CONTRIBUTING.md`
+asks for — the PR outliving the course is the point of contributing to a real repository.
+
+The three follow-ups I flagged in Week 9 are the ones I would want a reviewer's opinion on,
+and I am recording them here so they survive the course rather than dying with it: whether
+fixing the preamble bug alongside the reported bug was scope creep (I kept it as a separate,
+droppable commit precisely so a maintainer could say yes), whether the broken `chunk_index`
+should be a separate issue I file, and whether `# Just A Heading` with no body ought to
+produce a chunk.
+
+---
+
+### Reflection
+
+**What was harder than you expected?**
+
+Two things, and neither was the fix itself — the actual code change is about sixty lines and
+took a few hours.
+
+The first was that the repository was already broken. `pytest tests/unit -m unit` fails **53
+tests across 16 files** on a clean checkout, `ruff` reports 182 errors, and `black` would
+reformat 52 files. I had assumed "run the test suite" would give me a clean signal. It gave
+me a wall of red that had nothing to do with me. The only reason this did not derail the
+week is that I recorded a baseline *before* touching anything, which let me diff sorted
+failure lists before and after and show exactly one line of difference:
+`test_document_with_no_headings` flipping from fail to pass. Without that baseline I would
+have been staring at 52 failures with no way to prove which were mine — and no way to make
+the "no new failures" claim in my PR without a reviewer just having to trust me.
+
+The second was that my plan was wrong about the mechanism, and I only found out by tracing
+the code line by line before writing anything. I had a clean story going in: the guard on
+line 111 causes the preamble bug, the guard on line 115 causes the heading-less bug, one
+each. It is not that tidy. For a document with no headings, `heading_stack` and
+`current_section_lines` are *both* empty on every line, so the first guard drops the content
+before the second is ever reached — the reported bug needs both relaxed. That meant my
+commit split had to be by symptom rather than by line. The plan was still worth writing; it
+was just wrong in a way I would not have caught if I had started from the plan and typed.
+
+**What did you learn about working in a large codebase?**
+
+That most of the work is deciding what *not* to touch, and being able to defend each of
+those decisions.
+
+Three concrete cases from this fix. Before choosing what a chunk with no heading should
+carry in its metadata, I grepped `heading_path` across the whole repo and found that outside
+the chunker and its own test file, **nothing reads it** — not `rag/`, not `api/`, not
+`agent/`. That single grep turned a risk I had written down in `PLAN.md` (a stray `" > "`
+appearing in a citation breadcrumb) into a non-issue and let me pick the uniform
+`heading_path: ""` / `heading_level: 0` shape with confidence. In my own project I would
+have just picked one.
+
+Second, I found that `chunk_index` is already wrong — it is set to `len(chunks)` only on the
+non-sub-chunked branch, so indices collide once `SemanticChunker` contributes chunks. My fix
+produces more chunks and makes it more visible. It was tempting to fix it while I was in
+there. I left it and offered to file it separately, because a PR that fixes the bug it
+claims to fix is reviewable and a PR that fixes three things is a negotiation.
+
+Third, I did not run `make check`, even though the self-review checklist asks for it,
+because it invokes `black .` and rewrites 52 files repo-wide. Burying a three-file bugfix
+inside a repo-wide reformat is how you get a PR ignored. I ran `black --check` on my two
+files instead, formatted only code I added, left the pre-existing non-compliant blocks in
+the same file alone, and explained all of it in the PR description with an offer to reformat
+if the maintainer prefers.
+
+The through-line is that in my own project the cost of a change is whether it works. Here
+the cost is also how much of someone else's attention it consumes, and how much unrelated
+risk it drags along. That constraint shaped nearly every decision I made, and none of it
+shows up in the diff.
+
+**How did AI tools help — and where did they fall short?**
+
+Most useful for orientation and for mechanical breadth. Finding my way around an unfamiliar
+repository, tracing which callers reach `StructuralChunker` (only the `source_type ==
+"readme"` path, which is what bounded my blast radius), and drafting nine tests in the
+existing fixture and naming style all went faster with assistance than they would have
+otherwise. Turning my reproduction notes into the structured `PLAN.md` sections was the same
+kind of win — real, but essentially secretarial.
+
+Where it fell short is more interesting, and it is the same place every time: **anything
+that required checking a claim against the actual repository rather than against a plausible
+model of it.**
+
+The wrong-mechanism story above is the clearest case. "Line 111 is the preamble bug, line
+115 is the heading-less bug" is a *tidy* reading of that code, and tidy readings are exactly
+what you get from a confident assistant working from a quick scan. It survived into my
+written plan and did not survive contact with the actual control flow. Tracing it myself is
+what caught it.
+
+The same pattern held for the pre-existing failures. Nothing prompts you that the suite is
+already 53 tests red on a clean checkout. You have to think to record a baseline *before*
+you start, because you suspect the ground might not be solid — and that suspicion came from
+having been burned by assumptions elsewhere, not from the tooling.
+
+And the same for verifying my tests were real. It is easy to generate nine tests that pass
+against the code you just wrote; that proves nothing, because they were written by reading
+that code. Restoring the pre-fix chunker and running them against it — finding that eight of
+the nine fail, and that the ninth, `test_content_after_last_heading_is_kept`, passes both
+before *and* after and is therefore a regression guard rather than proof of my fix — was a
+step I had to decide to take. Nothing was going to suggest it to me.
+
+So: very good at producing a plausible first draft of almost anything. The judgment about
+which claims needed verifying, and the discipline to actually run the verification, stayed
+with me. That was the genuinely useful lesson of the module.
+
+**What would you do differently if you started over?**
+
+Sequence the week by dependency instead of by difficulty.
+
+Of everything due in Week 9, peer review was the **only** item that depended on another
+person's schedule, and therefore the only one I could not compress by working harder on the
+final day. It is the item that should have gone first. Instead I started building on
+Thursday, opened the PR on the last day, posted in Slack, and got nothing — not because
+anyone let me down, but because I gave them no window. The code took hours. The review
+window needed days, and I spent those days re-polishing planning I had largely finished in
+Week 8.
+
+The corrected version is unglamorous: open a rough PR early, even an ugly one, purely so the
+review clock starts, then keep improving it while people read. I optimised for the PR being
+polished when it landed, when what actually mattered was it existing while someone still had
+time to look at it.
+
+Smaller change: I would file the `chunk_index` issue rather than only offering to. Offering
+costs a maintainer a round trip to say yes; filing it costs them one click to close if they
+disagree.
+
+I would not change the issue selection. #149 was the right size — small enough to finish
+properly, with a failure mode (silent data loss producing confident but ungrounded output)
+that made the care worth spending.
+
+**What are you most proud of from this module?**
+
+That I verified my own tests instead of trusting them.
+
+Nine new tests is easy to write and easy to overclaim. I restored the pre-fix
+`_extract_sections` and ran them against it: eight fail, one passes. That ninth test,
+`test_content_after_last_heading_is_kept`, guards existing behaviour rather than proving my
+fix, and I kept it *and said so in the PR* instead of quietly counting nine.
+
+The same instinct showed up in the thing I am second-most pleased with: I modified **zero**
+existing tests. There is an existing assertion, `heading_level in [1, 2, 3]`, and my change
+introduces level 0. Rather than adjust it, I checked whether it could actually see a level-0
+chunk — its fixture opens with `# Level 1` and has no preamble, so it cannot. Editing
+someone else's test to make your change pass is precisely what a reviewer should catch, and
+I wanted the diff to contain nothing a reviewer would have to catch.
+
+None of that is visible in the sixty lines of source I changed. But it is the part I would
+want someone to look at if they were deciding whether to trust the fix.
